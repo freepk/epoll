@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"runtime"
 	"syscall"
 )
 
@@ -66,7 +67,7 @@ func wait(fd, efd int) {
 
 func main() {
 	addr := &syscall.SockaddrInet4{Port: 8888}
-	n := 1
+	n := runtime.NumCPU()
 	for i := 0; i < n; i++ {
 		fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
 		if err != nil {
