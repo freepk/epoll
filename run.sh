@@ -1,3 +1,3 @@
 #!/bin/bash
 docker build -t centos-go .
-docker run -it -v $(pwd):/root/go/src/github.com/freepk/epoll centos-go
+docker run --net host -p 8888:8888 centos-go
