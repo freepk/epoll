@@ -7,13 +7,11 @@ import (
 
 const SO_REUSEPORT = 0x0F
 
-var DefaultResponse = []byte("HTTP/1.0 200 OK\r\n" +
-	"Connection: Keep-Alive\r\n" +
-	"Content-type: text/html\r\n" +
-	"Connection: close\r\n" +
-	"Content-Length: 2\r\n" +
+var DefaultResponse = []byte("HTTP/1.1 200 OK\r\n" +
+	"Content-Type: text/plain; charset=utf-8\r\n" +
+	"Content-Length: 12\r\n" +
 	"\r\n" +
-	"\r\n")
+	"Hello World!")
 
 func wait(fd, efd int) {
 	log.Println("wait", fd, efd)
@@ -27,7 +25,6 @@ func wait(fd, efd int) {
 		for i := 0; i < n; i++ {
 			switch {
 			case events[i].Fd == int32(fd):
-				//log.Println("Listener case")
 				nfd, _, err := syscall.Accept4(fd, syscall.SOCK_NONBLOCK)
 				if err != nil {
 					log.Fatal("syscall.Accept4:", err)
@@ -37,12 +34,10 @@ func wait(fd, efd int) {
 					log.Fatal("syscall.EpollCtl:", err)
 				}
 			case events[i].Fd != int32(fd):
-				//log.Println("Client case")
 				total := 0
 				for {
 					n, err := syscall.Read(int(events[i].Fd), buf)
 					if err == syscall.EAGAIN {
-						//log.Println("syscall.Read:EAGAIN", n)
 						break
 					}
 					if err != nil {
@@ -52,7 +47,6 @@ func wait(fd, efd int) {
 						break
 					}
 					total += n
-					//log.Println("syscall.Read:", string(buf[:n]))
 				}
 				if total == 0 {
 					syscall.Close(int(events[i].Fd))
