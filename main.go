@@ -7,6 +7,14 @@ import (
 
 const SO_REUSEPORT = 0x0F
 
+var DefaultResponse = []byte("HTTP/1.0 200 OK\r\n" +
+	"Connection: Keep-Alive\r\n" +
+	"Content-type: text/html\r\n" +
+	"Connection: close\r\n" +
+	"Content-Length: 2\r\n" +
+	"\r\n" +
+	"\r\n")
+
 func wait(fd, efd int) {
 	log.Println("wait", fd, efd)
 	events := make([]syscall.EpollEvent, 128)
@@ -18,8 +26,8 @@ func wait(fd, efd int) {
 		}
 		for i := 0; i < n; i++ {
 			switch {
-			case events[i].Events == syscall.EPOLLIN && events[i].Fd == int32(fd):
-				//log.Println("Accept case")
+			case events[i].Fd == int32(fd):
+				//log.Println("Listener case")
 				nfd, _, err := syscall.Accept4(fd, syscall.SOCK_NONBLOCK)
 				if err != nil {
 					log.Fatal("syscall.Accept4:", err)
@@ -28,8 +36,9 @@ func wait(fd, efd int) {
 				if err = syscall.EpollCtl(efd, syscall.EPOLL_CTL_ADD, nfd, event); err != nil {
 					log.Fatal("syscall.EpollCtl:", err)
 				}
-			case events[i].Events == syscall.EPOLLIN && events[i].Fd != int32(fd):
-				//log.Println("Read case")
+			case events[i].Fd != int32(fd):
+				//log.Println("Client case")
+				total := 0
 				for {
 					n, err := syscall.Read(int(events[i].Fd), buf)
 					if err == syscall.EAGAIN {
@@ -42,9 +51,20 @@ func wait(fd, efd int) {
 					if n == 0 {
 						break
 					}
+					total += n
 					//log.Println("syscall.Read:", string(buf[:n]))
 				}
-				syscall.Close(int(events[i].Fd))
+				if total == 0 {
+					syscall.Close(int(events[i].Fd))
+					continue
+				}
+				n, err := syscall.Write(int(events[i].Fd), DefaultResponse)
+				if n != len(DefaultResponse) {
+					log.Fatal("syscall.Write: data corruption")
+				}
+				if err != nil {
+					log.Fatal("syscall.Write:", err)
+				}
 			}
 		}
 	}
@@ -52,7 +72,7 @@ func wait(fd, efd int) {
 
 func main() {
 	addr := &syscall.SockaddrInet4{Port: 8888}
-	n := 4
+	n := 1
 	for i := 0; i < n; i++ {
 		fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
 		if err != nil {
