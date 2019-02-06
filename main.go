@@ -60,6 +60,8 @@ func wait(fd, efd int) {
 				if err != nil {
 					log.Fatal("syscall.Write:", err)
 				}
+			default:
+				log.Fatal("unknown event:", events[i])
 			}
 		}
 	}
