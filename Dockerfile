@@ -11,4 +11,5 @@ RUN curl -O https://codeload.github.com/freepk/epoll/zip/master && \
 FROM scratch
 COPY --from=builder /root/go/src/github.com/freepk/epoll-master/epoll /epoll
 EXPOSE 8888
+ENV GOGC=off
 CMD ["/epoll"]
