@@ -15,7 +15,6 @@ var DefaultResponse = []byte("HTTP/1.1 200 OK\r\n" +
 	"Hello World!")
 
 func wait(fd, efd int) {
-	log.Println("wait", fd, efd)
 	events := make([]syscall.EpollEvent, 128)
 	buf := make([]byte, 32768)
 	for {
@@ -59,12 +58,9 @@ func main() {
 	addr := &syscall.SockaddrInet4{Port: 8888}
 	n := runtime.NumCPU()
 	for i := 0; i < n; i++ {
-		fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+		fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
 		if err != nil {
 			log.Fatal("syscall.Socket:", err)
-		}
-		if err = syscall.SetNonblock(fd, true); err != nil {
-			log.Fatal("syscall.SetNonblock:", err)
 		}
 		if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, SO_REUSEPORT, 1); err != nil {
 			log.Fatal("syscall.SetsockoptInt:", err)
