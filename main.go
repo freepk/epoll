@@ -17,7 +17,7 @@ var DefaultResponse = []byte("HTTP/1.1 200 OK\r\n" +
 func wait(fd, efd int) {
 	log.Println("wait", fd, efd)
 	events := make([]syscall.EpollEvent, 128)
-	buf := make([]byte, 8192)
+	buf := make([]byte, 32768)
 	for {
 		n, err := syscall.EpollWait(efd, events, -1)
 		if err != nil {
@@ -30,38 +30,26 @@ func wait(fd, efd int) {
 				if err != nil {
 					log.Fatal("syscall.Accept4:", err)
 				}
+				if err = syscall.SetsockoptInt(nfd, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil {
+					log.Fatal("syscall.SetsockoptInt:", err)
+				}
 				event := &syscall.EpollEvent{Fd: int32(nfd), Events: syscall.EPOLLIN}
 				if err = syscall.EpollCtl(efd, syscall.EPOLL_CTL_ADD, nfd, event); err != nil {
 					log.Fatal("syscall.EpollCtl:", err)
 				}
 			case events[i].Fd != int32(fd):
-				total := 0
-				for {
-					n, err := syscall.Read(int(events[i].Fd), buf)
-					if err == syscall.EAGAIN {
-						break
-					}
-					if err != nil {
-						log.Fatal("syscall.Read:", err)
-					}
-					if n == 0 {
-						break
-					}
-					total += n
-				}
-				if total == 0 {
+				n, err := syscall.Read(int(events[i].Fd), buf)
+				if n == 0 {
 					syscall.Close(int(events[i].Fd))
 					continue
 				}
-				n, err := syscall.Write(int(events[i].Fd), DefaultResponse)
-				if n != len(DefaultResponse) {
-					log.Fatal("syscall.Write: data corruption")
+				if err != nil {
+					log.Fatal("syscall.Read:", err)
 				}
+				n, err = syscall.Write(int(events[i].Fd), DefaultResponse)
 				if err != nil {
 					log.Fatal("syscall.Write:", err)
 				}
-			default:
-				log.Fatal("unknown event:", events[i])
 			}
 		}
 	}
