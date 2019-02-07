@@ -38,15 +38,15 @@ func wait(fd, efd int) {
 					log.Fatal("syscall.EpollCtl:", err)
 				}
 			case events[i].Fd != int32(fd):
-				n, err := syscall.Read(int(events[i].Fd), buf)
-				if n == 0 {
+				m, err := syscall.Read(int(events[i].Fd), buf)
+				if m == 0 {
 					syscall.Close(int(events[i].Fd))
 					continue
 				}
 				if err != nil {
 					log.Fatal("syscall.Read:", err)
 				}
-				n, err = syscall.Write(int(events[i].Fd), DefaultResponse)
+				m, err = syscall.Write(int(events[i].Fd), DefaultResponse)
 				if err != nil {
 					log.Fatal("syscall.Write:", err)
 				}
