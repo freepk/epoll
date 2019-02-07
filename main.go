@@ -14,6 +14,8 @@ var DefaultResponse = []byte("HTTP/1.1 200 OK\r\n" +
 	"\r\n" +
 	"Hello World!")
 
+var event = &syscall.EpollEvent{Events: syscall.EPOLLIN}
+
 func wait(fd, efd int) {
 	events := make([]syscall.EpollEvent, 128)
 	buf := make([]byte, 32768)
@@ -32,7 +34,7 @@ func wait(fd, efd int) {
 				if err = syscall.SetsockoptInt(nfd, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil {
 					log.Fatal("syscall.SetsockoptInt:", err)
 				}
-				event := &syscall.EpollEvent{Fd: int32(nfd), Events: syscall.EPOLLIN}
+				event.Fd = int32(nfd)
 				if err = syscall.EpollCtl(efd, syscall.EPOLL_CTL_ADD, nfd, event); err != nil {
 					log.Fatal("syscall.EpollCtl:", err)
 				}
@@ -58,7 +60,7 @@ func main() {
 	addr := &syscall.SockaddrInet4{Port: 8888}
 	n := runtime.NumCPU()
 	for i := 0; i < n; i++ {
-		fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
+		fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
 		if err != nil {
 			log.Fatal("syscall.Socket:", err)
 		}
@@ -75,7 +77,7 @@ func main() {
 		if err != nil {
 			log.Fatal("syscall.EpollCreate1:", err)
 		}
-		event := &syscall.EpollEvent{Fd: int32(fd), Events: syscall.EPOLLIN}
+		event.Fd = int32(fd)
 		if err = syscall.EpollCtl(efd, syscall.EPOLL_CTL_ADD, fd, event); err != nil {
 			log.Fatal("syscall.EpollCtl:", err)
 		}
