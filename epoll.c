@@ -54,7 +54,7 @@ void start_loop()
 	struct epoll_event events[SOMAXCONN];
 	char request[32768];
 	while (1) {
-		int n = epoll_wait(efd, events, SOMAXCONN, -1);
+		int n = epoll_wait(efd, events, SOMAXCONN, 0);
 		if (n == -1) {
 			perror("epoll_wait failed");
 			exit(EXIT_FAILURE);
