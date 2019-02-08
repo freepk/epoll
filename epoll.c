@@ -8,89 +8,86 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-char reply[] = "HTTP/1.1 200 OK\r\n"
-	"Content-Type: text/plain\r\n"
-	"Content-Length: 12\r\n"
-	"\r\n"
-	"Hello World!";
+#define MAX_EVENTS 128
 
-void start_loop()
-{
-	int sfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-	if (sfd == -1) {
+void handle_input(int fd) {
+	int n;
+	char buf[16384];
+
+	n = read(fd, buf, sizeof(buf));
+	if (n == 0) {
+		close(fd);
+		return;
+	}
+	write(fd, "HTTP/1.1 200 OK\r\n\r\nHello World", 30);
+}
+
+void start_loop(void) {
+	int listen_sock, client_sock;
+	int one, n, i;
+	int epollfd;
+	struct sockaddr_in addr;
+	struct epoll_event event, events[MAX_EVENTS];
+
+	listen_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+	if (listen_sock == -1) {
 		perror("socket failed");
 		exit(EXIT_FAILURE);
 	}
-	int one = 1;
-	int ret = setsockopt(sfd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
-	if (ret == -1) {
+	one = 1;
+	if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) == -1) {
 		perror("setsockopt failed");
 		exit(EXIT_FAILURE);
 	}
-	struct sockaddr_in addr = { .sin_family = AF_INET,
-		.sin_addr.s_addr = INADDR_ANY,
-		.sin_port = htons(8888) };
-	ret = bind(sfd, (struct sockaddr*)&addr, sizeof(addr));
-	if (ret == -1) {
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_port = htons(8888);
+	if (bind(listen_sock, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
 		perror("bind failed");
 		exit(EXIT_FAILURE);
 	}
-	ret = listen(sfd, SOMAXCONN);
-	if (ret == -1) {
+	if (listen(listen_sock, SOMAXCONN) == -1) {
 		perror("listen failed");
 		exit(EXIT_FAILURE);
 	}
-	int efd = epoll_create1(0);
-	if (efd == -1) {
+	epollfd = epoll_create1(0);
+	if (epollfd == -1) {
 		perror("epoll_create1 failed");
 		exit(EXIT_FAILURE);
 	}
-	struct epoll_event event = { .events = EPOLLIN, .data.fd = sfd };
-	ret = epoll_ctl(efd, EPOLL_CTL_ADD, sfd, &event);
-	if (ret == -1) {
+	event.events = EPOLLIN
+	event.data.fd = listen_sock;
+	if (epoll_ctl(epollfd, EPOLL_CTL_ADD, listen_sock, &event) == -1) {
 		perror("epoll_ctl failed");
 		exit(EXIT_FAILURE);
 	}
-	struct epoll_event events[SOMAXCONN];
-	char request[32768];
-	while (1) {
-		int n = epoll_wait(efd, events, SOMAXCONN, 0);
+	for (;;) {
+		int n = epoll_wait(epollfd, events, MAX_EVENTS, -1);
 		if (n == -1) {
 			perror("epoll_wait failed");
 			exit(EXIT_FAILURE);
 		}
-		for (int i = 0; i < n; i++) {
-			int fd = events[i].data.fd;
-			if (fd == sfd) {
-				int nfd = accept4(sfd, NULL, NULL, SOCK_NONBLOCK);
-				if (nfd == -1) {
+		for (i = 0; i < n; i++) {
+			if (event[i].data.fd == listen_sock) {
+				client_sock = accept4(listen_sock, NULL, NULL, SOCK_NONBLOCK);
+				if (client_sock == -1) {
 					perror("accept failed");
 					exit(EXIT_FAILURE);
 				}
-				event.data.fd = nfd;
-				ret = epoll_ctl(efd, EPOLL_CTL_ADD, nfd, &event);
-				if (ret == -1) {
+				event.events = EPOLLIN | EPOLLET;
+				event.data.fd = client_sock;
+				if (epoll_ctl(epollfd, EPOLL_CTL_ADD, client_sock, &event) == -1) {
 					perror("epoll_ctl failed");
 					exit(EXIT_FAILURE);
 				}
 			} else {
-				int m = read(fd, request, sizeof(request));
-				if (m == 0) {
-					close(fd);
-					continue;
-				}
-				m = write(fd, reply, sizeof(reply) - 1);
-				if (m == -1) {
-					perror("write failed");
-					exit(EXIT_FAILURE);
-				}
+				handle_input(event[i].data.fd);
 			}
 		}
 	}
 }
 
-int main(void)
-{
+int main(void) {
 	start_loop();
 	return 0;
 }
