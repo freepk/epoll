@@ -7,6 +7,7 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #define MAX_EVENTS 128
 
@@ -23,7 +24,7 @@ void handle_input(int fd)
 	write(fd, "HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nHello World", 50);
 }
 
-void start_loop(void)
+void *start_loop(void *dummy)
 {
 	int listen_sock, client_sock;
 	int one, n, i;
@@ -88,10 +89,22 @@ void start_loop(void)
 			}
 		}
 	}
+	return NULL;
 }
 
-int main(void)
+int main()
 {
-	start_loop();
+	pthread_t thr1, thr2;
+	if (pthread_create(&thr1, NULL, start_loop, NULL) != 0) {
+		perror("accept failed");
+		exit(EXIT_FAILURE);
+	}
+	if (pthread_create(&thr2, NULL, start_loop, NULL) != 0) {
+                perror("accept failed");
+                exit(EXIT_FAILURE);
+	}
+	pthread_join(thr1, NULL);
+	pthread_join(thr2, NULL);
 	return 0;
 }
+
