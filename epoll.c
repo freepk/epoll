@@ -21,7 +21,11 @@ void handle_input(int fd)
 		close(fd);
 		return;
 	}
-	write(fd, "HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nHello World", 50);
+	n = write(fd, "HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nHello World", 50);
+	if (n == -1) {
+		perror("socket failed");
+		exit(EXIT_FAILURE);
+	}
 }
 
 void *start_loop(void *dummy)
