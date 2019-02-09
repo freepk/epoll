@@ -10,8 +10,12 @@
 
 #define MAX_EVENTS 128
 
-void handle_input(int fd)
-{
+static char reply[50] = "HTTP/1.1 200 OK\r\n"
+	"Content-Length: 11\r\n"
+	"\r\n"
+	"Hello World";
+
+void handle_input(int fd) {
 	int n;
 	char buf[16384];
 
@@ -20,15 +24,14 @@ void handle_input(int fd)
 		close(fd);
 		return;
 	}
-	n = write(fd, "HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nHello World", 50);
+	n = write(fd, reply, 50);
 	if (n == -1) {
 		perror("socket failed");
 		exit(EXIT_FAILURE);
 	}
 }
 
-void *start_loop(void *dummy)
-{
+void *start_loop(void *dummy) {
 	int listen_sock, client_sock;
 	int one, n, i;
 	int epollfd;
@@ -95,8 +98,7 @@ void *start_loop(void *dummy)
 	return NULL;
 }
 
-int main()
-{
+int main() {
 	pthread_t thr1, thr2;
 	if (pthread_create(&thr1, NULL, start_loop, NULL) != 0) {
 		perror("pthread_create failed");
@@ -110,4 +112,3 @@ int main()
 	pthread_join(thr2, NULL);
 	return 0;
 }
-
