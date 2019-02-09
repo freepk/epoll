@@ -51,10 +51,7 @@ func start_loop() {
 				if err != nil {
 					log.Fatal("syscall.Accept4:", err)
 				}
-				//if err = syscall.SetsockoptInt(client_sock, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil {
-				//	log.Fatal("syscall.SetsockoptInt:", err)
-				//}
-				event = syscall.EpollEvent{Fd: int32(client_sock), Events: syscall.EPOLLIN /*| EPOLLET*/}
+				event = syscall.EpollEvent{Fd: int32(client_sock), Events: syscall.EPOLLIN | EPOLLET}
 				if err = syscall.EpollCtl(epollfd, syscall.EPOLL_CTL_ADD, client_sock, &event); err != nil {
 					log.Fatal("syscall.EpollCtl:", err)
 				}
@@ -65,7 +62,8 @@ func start_loop() {
 					continue
 				}
 				if err != nil {
-					log.Fatal("syscall.Read:", err)
+					syscall.Close(int(events[i].Fd))
+					continue
 				}
 				m, err = syscall.Write(int(events[i].Fd), DefaultResponse)
 				if err != nil {

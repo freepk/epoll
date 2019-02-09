@@ -24,9 +24,13 @@ void handle_input(int fd) {
 		close(fd);
 		return;
 	}
+	if (n == -1) {
+		close(fd);
+		return;
+	}
 	n = write(fd, reply, 50);
 	if (n == -1) {
-		perror("socket failed");
+		perror("write failed");
 		exit(EXIT_FAILURE);
 	}
 }
