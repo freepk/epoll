@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-	//"runtime"
+	"runtime"
 	"syscall"
 )
 
@@ -77,7 +77,7 @@ func start_loop() {
 }
 
 func main() {
-	n := 2 // runtime.NumCPU()
+	n := runtime.NumCPU()
 	for i := 0; i < n; i++ {
 		go start_loop()
 	}
