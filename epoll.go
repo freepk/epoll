@@ -56,16 +56,20 @@ func start_loop() {
 					log.Fatal("syscall.EpollCtl:", err)
 				}
 			case events[i].Fd != int32(listen_sock):
-				m, err := syscall.Read(int(events[i].Fd), buf)
+				fd := int(events[i].Fd)
+				m, err := syscall.Read(fd, buf)
 				if m == 0 {
-					syscall.Close(int(events[i].Fd))
+					syscall.EpollCtl(epollfd, syscall.EPOLL_CTL_DEL, fd, nil)
+					syscall.Close(fd)
 					continue
 				}
 				if err != nil {
-					syscall.Close(int(events[i].Fd))
+					syscall.EpollCtl(epollfd, syscall.EPOLL_CTL_DEL, fd, nil)
+					syscall.Close(fd)
 					continue
 				}
-				m, err = syscall.Write(int(events[i].Fd), DefaultResponse)
+				log.Println(m, string(buf[:m]))
+				m, err = syscall.Write(fd, DefaultResponse)
 				if err != nil {
 					log.Fatal("syscall.Write:", err)
 				}
