@@ -68,7 +68,6 @@ func start_loop() {
 					syscall.Close(fd)
 					continue
 				}
-				log.Println(m, string(buf[:m]))
 				m, err = syscall.Write(fd, DefaultResponse)
 				if err != nil {
 					log.Fatal("syscall.Write:", err)

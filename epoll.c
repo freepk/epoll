@@ -15,16 +15,18 @@ static char reply[50] = "HTTP/1.1 200 OK\r\n"
 	"\r\n"
 	"Hello World";
 
-void handle_input(int fd) {
+void handle_input(int epollfd, int fd) {
 	int n;
 	char buf[16384];
 
 	n = read(fd, buf, sizeof(buf));
 	if (n == 0) {
+		epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, NULL);
 		close(fd);
 		return;
 	}
 	if (n == -1) {
+		epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, NULL);
 		close(fd);
 		return;
 	}
@@ -95,7 +97,7 @@ void *start_loop(void *dummy) {
 					exit(EXIT_FAILURE);
 				}
 			} else {
-				handle_input(events[i].data.fd);
+				handle_input(epollfd, events[i].data.fd);
 			}
 		}
 	}
