@@ -27,12 +27,12 @@ void handleInput(int epollfd, int fd) {
 
 	n = read(fd, buf, sizeof(buf));
 	if (n == 0) {
-		epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, NULL);
+		epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
 		close(fd);
 		return;
 	}
 	if (n == -1) {
-		epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, NULL);
+		epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
 		close(fd);
 		return;
 	}
