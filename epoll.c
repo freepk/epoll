@@ -12,13 +12,14 @@
 #define MAX_EVENTS 2048
 
 int defaultPort = 8888;
-char defaultResponse[90] = "HTTP/1.1 202 OK\r\n"
-	"Server: Techlab\r\n"
-	"Content-Type: application/json\r\n"
-	"Content-Length: 2\r\n"
-	"\r\n"
-	"{}";
+
+char defaultResponse[50] = "HTTP/1.1 200 OK\r\n"
+        "Content-Length: 11\r\n"
+        "\r\n"
+        "Hello World";
+
 char getMethod[3] = "GET";
+
 char postMethod[4] = "POST";
 
 void handleInput(int epollfd, int fd) {
@@ -39,7 +40,7 @@ void handleInput(int epollfd, int fd) {
 	if (strncmp(buf, getMethod, 3) != 0 && strncmp(buf, postMethod, 4) != 0) {
 		return;
 	}
-	n = write(fd, defaultResponse, 90);
+	n = write(fd, defaultResponse, 50);
 	if (n == -1) {
 		perror("write failed");
 		exit(EXIT_FAILURE);
