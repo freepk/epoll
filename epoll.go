@@ -51,7 +51,7 @@ func start_loop() {
 				if err != nil {
 					log.Fatal("syscall.Accept4:", err)
 				}
-				event = syscall.EpollEvent{Fd: int32(client_sock), Events: syscall.EPOLLIN | EPOLLET}
+				event = syscall.EpollEvent{Fd: int32(client_sock), Events: syscall.EPOLLIN}
 				if err = syscall.EpollCtl(epollfd, syscall.EPOLL_CTL_ADD, client_sock, &event); err != nil {
 					log.Fatal("syscall.EpollCtl:", err)
 				}
