@@ -9,7 +9,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define MAX_EVENTS 16384
+#define MAX_EVENTS 128
 #define SERVER_PORT 80
 
 char defaultResponse[] = "HTTP/1.1 200 OK\r\n"
@@ -109,25 +109,25 @@ void* startLoop(void* dummy)
             if (events[i].data.fd != listen_sock) {
                 continue;
             }
-                client_sock = accept4(listen_sock, NULL, NULL, SOCK_NONBLOCK);
-                if (client_sock == -1) {
-                    perror("accept failed");
-                    exit(EXIT_FAILURE);
-                }
-                if (setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) == -1) {
-                    perror("setsockopt TCP_NODELAY failed");
-                    exit(EXIT_FAILURE);
-                }
-                if (setsockopt(client_sock, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one)) == -1) {
-                    perror("setsockopt TCP_QUICKACK failed");
-                    exit(EXIT_FAILURE);
-                }
-                event.events = EPOLLIN;
-                event.data.fd = client_sock;
-                if (epoll_ctl(epollfd, EPOLL_CTL_ADD, client_sock, &event) == -1) {
-                    perror("epoll_ctl failed");
-                    exit(EXIT_FAILURE);
-                }
+            client_sock = accept4(listen_sock, NULL, NULL, SOCK_NONBLOCK);
+            if (client_sock == -1) {
+                perror("accept failed");
+                exit(EXIT_FAILURE);
+            }
+            if (setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) == -1) {
+                perror("setsockopt TCP_NODELAY failed");
+                exit(EXIT_FAILURE);
+            }
+            if (setsockopt(client_sock, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one)) == -1) {
+                perror("setsockopt TCP_QUICKACK failed");
+                exit(EXIT_FAILURE);
+            }
+            event.events = EPOLLIN;
+            event.data.fd = client_sock;
+            if (epoll_ctl(epollfd, EPOLL_CTL_ADD, client_sock, &event) == -1) {
+                perror("epoll_ctl failed");
+                exit(EXIT_FAILURE);
+            }
         }
     }
     return NULL;
