@@ -57,7 +57,6 @@ void* startLoop(void* dummy)
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(SERVER_PORT);
-
     listen_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
     if (listen_sock == -1) {
         perror("socket failed");
@@ -102,6 +101,14 @@ void* startLoop(void* dummy)
         }
         for (i = 0; i < n; i++) {
             if (events[i].data.fd == listen_sock) {
+                continue;
+            }
+            handleInput(epollfd, events[i].data.fd);
+        }
+        for (i = 0; i < n; i++) {
+            if (events[i].data.fd != listen_sock) {
+                continue;
+            }
                 client_sock = accept4(listen_sock, NULL, NULL, SOCK_NONBLOCK);
                 if (client_sock == -1) {
                     perror("accept failed");
@@ -121,9 +128,6 @@ void* startLoop(void* dummy)
                     perror("epoll_ctl failed");
                     exit(EXIT_FAILURE);
                 }
-            } else {
-                handleInput(epollfd, events[i].data.fd);
-            }
         }
     }
     return NULL;
