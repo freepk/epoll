@@ -67,6 +67,14 @@ void* startLoop(void* dummy)
         perror("setsockopt SO_REUSEPORT failed");
         exit(EXIT_FAILURE);
     }
+    if (setsockopt(listen_sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) == -1) {
+        perror("setsockopt TCP_NODELAY failed");
+        exit(EXIT_FAILURE);
+    }
+    if (setsockopt(listen_sock, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one)) == -1) {
+        perror("setsockopt TCP_QUICKACK failed");
+        exit(EXIT_FAILURE);
+    }
     if (bind(listen_sock, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
         perror("bind failed");
         exit(EXIT_FAILURE);
@@ -97,6 +105,14 @@ void* startLoop(void* dummy)
                 client_sock = accept4(listen_sock, NULL, NULL, SOCK_NONBLOCK);
                 if (client_sock == -1) {
                     perror("accept failed");
+                    exit(EXIT_FAILURE);
+                }
+                if (setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) == -1) {
+                    perror("setsockopt TCP_NODELAY failed");
+                    exit(EXIT_FAILURE);
+                }
+                if (setsockopt(client_sock, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one)) == -1) {
+                    perror("setsockopt TCP_QUICKACK failed");
                     exit(EXIT_FAILURE);
                 }
                 event.events = EPOLLIN;
