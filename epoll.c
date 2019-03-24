@@ -5,6 +5,7 @@
 #include <netinet/tcp.h>
 #include <stddef.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #define MAX_EVENTS 2048
 
@@ -86,8 +87,25 @@ void listenAndServe() {
 	}
 }
 
+void *serverWorker(void *args) {
+        listenAndServe();
+        return NULL;
+}
+
 int main() {
-	listenAndServe();
-	return 0;
+        pthread_t thr1, thr2, thr3;
+        if (pthread_create(&thr1, NULL, serverWorker, NULL) != 0) {
+                return -1;
+        }
+        if (pthread_create(&thr2, NULL, serverWorker, NULL) != 0) {
+                return -1;
+        }
+        if (pthread_create(&thr3, NULL, serverWorker, NULL) != 0) {
+                return -1;
+        }
+        pthread_join(thr1, NULL);
+        pthread_join(thr2, NULL);
+        pthread_join(thr3, NULL);
+        return 0;
 }
 
