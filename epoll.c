@@ -1,156 +1,93 @@
 #define _GNU_SOURCE
+#include <sys/socket.h>
+#include <sys/epoll.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/epoll.h>
-#include <sys/socket.h>
+#include <stddef.h>
 #include <unistd.h>
 
-#define MAX_EVENTS 128
-#define SERVER_PORT 80
+#define MAX_EVENTS 2048
 
-char defaultResponse[] = "HTTP/1.1 200 OK\r\n"
-                         "Content-Length: 2\r\n"
-                         "\r\n"
-                         "{}";
+char Http200[] = "HTTP/1.1 200 OK\r\n"
+                 "Content-Length: 2\r\n"
+                 "\r\n"
+                 "{}";
 
-int defaultResponseLen = 40;
-
-void handleInput(int epollfd, int fd)
-{
-    int n;
-    char buf[16384];
-
-    n = recv(fd, buf, sizeof(buf), 0);
-    if (n == 0) {
-        epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
-        close(fd);
-        return;
-    }
-    if (n == -1) {
-        epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
-        close(fd);
-        return;
-    }
-    if (strncmp(buf, "GET", 3) != 0 && strncmp(buf, "POST", 4) != 0) {
-        return;
-    }
-    n = send(fd, defaultResponse, defaultResponseLen, 0);
-    if (n == -1) {
-        perror("send failed");
-        exit(EXIT_FAILURE);
-    }
+void listenAndServe() {
+	int srvSock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+	if (srvSock == -1) {
+		return;
+	}
+	int one = 1;
+	if (setsockopt(srvSock, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) == -1) {
+		return;
+	}
+	if (setsockopt(srvSock, SOL_TCP, TCP_NODELAY, &one, sizeof(one)) == -1) {
+		return;
+	}
+	if (setsockopt(srvSock, SOL_TCP, TCP_DEFER_ACCEPT, &one, sizeof(one)) == -1) {
+		return;
+	}
+	int queueLen = 2048;
+	if (setsockopt(srvSock, SOL_TCP, TCP_FASTOPEN, &queueLen, sizeof(queueLen)) == -1) {
+		return;
+	}
+	struct sockaddr_in srvAddr = { .sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY, .sin_port = htons(80)};
+	if (bind(srvSock, (struct sockaddr *) &srvAddr, sizeof(srvAddr)) == -1) {
+		return;
+	}
+	if (listen(srvSock, SOMAXCONN) == -1) {
+		return;
+	}
+	int epollFd = epoll_create1(0);
+	if (epollFd == -1) {
+		return;
+	}
+	struct epoll_event event = { .events = EPOLLIN, .data.fd = srvSock};
+	if (epoll_ctl(epollFd, EPOLL_CTL_ADD, srvSock, &event) == -1) {
+		return;
+	}
+	struct epoll_event events[MAX_EVENTS];
+	char buf[16384];
+	while(1) {
+		int n = epoll_wait(epollFd, events, MAX_EVENTS, 0);
+		if (n == -1) {
+			return;
+		}
+		while(n > 0) {
+			n--;
+			int sock = events[n].data.fd;
+			if (sock == srvSock) {
+				sock = accept4(srvSock, NULL, NULL, SOCK_NONBLOCK);
+				if (sock == -1) {
+					return;
+				}
+				if (setsockopt(sock, SOL_TCP, TCP_NODELAY, &one, sizeof(one)) == -1) {
+					return;
+				}
+				event.data.fd = sock;
+				if (epoll_ctl(epollFd, EPOLL_CTL_ADD, sock, &event) == -1) {
+					return;
+				}
+			}
+			int m = recv(sock, buf, sizeof(buf), 0);
+			if (m == 0) {
+				close(sock);
+				continue;
+			}
+			if (m == -1) {
+				close(sock);
+				continue;
+			}
+			if (buf[0] == 'G' || buf[0] == 'P') {
+				send(sock, Http200, sizeof(Http200) - 1, 0);
+			}
+		}
+	}
 }
 
-void* startLoop(void* dummy)
-{
-    int listen_sock, client_sock;
-    int one, n, i;
-    int epollfd;
-    struct sockaddr_in addr;
-    struct epoll_event event, events[MAX_EVENTS];
-
-    one = 1;
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(SERVER_PORT);
-    listen_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-    if (listen_sock == -1) {
-        perror("socket failed");
-        exit(EXIT_FAILURE);
-    }
-    if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) == -1) {
-        perror("setsockopt SO_REUSEPORT failed");
-        exit(EXIT_FAILURE);
-    }
-    if (setsockopt(listen_sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) == -1) {
-        perror("setsockopt TCP_NODELAY failed");
-        exit(EXIT_FAILURE);
-    }
-    if (setsockopt(listen_sock, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one)) == -1) {
-        perror("setsockopt TCP_QUICKACK failed");
-        exit(EXIT_FAILURE);
-    }
-    if (bind(listen_sock, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
-        perror("bind failed");
-        exit(EXIT_FAILURE);
-    }
-    if (listen(listen_sock, SOMAXCONN) == -1) {
-        perror("listen failed");
-        exit(EXIT_FAILURE);
-    }
-    epollfd = epoll_create1(0);
-    if (epollfd == -1) {
-        perror("epoll_create1 failed");
-        exit(EXIT_FAILURE);
-    }
-    event.events = EPOLLIN;
-    event.data.fd = listen_sock;
-    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, listen_sock, &event) == -1) {
-        perror("epoll_ctl failed");
-        exit(EXIT_FAILURE);
-    }
-    for (;;) {
-        n = epoll_wait(epollfd, events, MAX_EVENTS, 0);
-        if (n == -1) {
-            perror("epoll_wait failed");
-            exit(EXIT_FAILURE);
-        }
-        for (i = 0; i < n; i++) {
-            if (events[i].data.fd == listen_sock) {
-                continue;
-            }
-            handleInput(epollfd, events[i].data.fd);
-        }
-        for (i = 0; i < n; i++) {
-            if (events[i].data.fd != listen_sock) {
-                continue;
-            }
-            client_sock = accept4(listen_sock, NULL, NULL, SOCK_NONBLOCK);
-            if (client_sock == -1) {
-                perror("accept failed");
-                exit(EXIT_FAILURE);
-            }
-            if (setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) == -1) {
-                perror("setsockopt TCP_NODELAY failed");
-                exit(EXIT_FAILURE);
-            }
-            if (setsockopt(client_sock, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one)) == -1) {
-                perror("setsockopt TCP_QUICKACK failed");
-                exit(EXIT_FAILURE);
-            }
-            event.events = EPOLLIN;
-            event.data.fd = client_sock;
-            if (epoll_ctl(epollfd, EPOLL_CTL_ADD, client_sock, &event) == -1) {
-                perror("epoll_ctl failed");
-                exit(EXIT_FAILURE);
-            }
-        }
-    }
-    return NULL;
+int main() {
+	listenAndServe();
+	return 0;
 }
 
-int main()
-{
-    pthread_t thr1, thr2, thr3;
-    if (pthread_create(&thr1, NULL, startLoop, NULL) != 0) {
-        perror("pthread_create failed");
-        exit(EXIT_FAILURE);
-    }
-    if (pthread_create(&thr2, NULL, startLoop, NULL) != 0) {
-        perror("pthread_create failed");
-        exit(EXIT_FAILURE);
-    }
-    if (pthread_create(&thr3, NULL, startLoop, NULL) != 0) {
-        perror("pthread_create failed");
-        exit(EXIT_FAILURE);
-    }
-    pthread_join(thr1, NULL);
-    pthread_join(thr2, NULL);
-    pthread_join(thr3, NULL);
-
-    return 0;
-}
