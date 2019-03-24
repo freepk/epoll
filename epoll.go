@@ -1,83 +1,83 @@
 package main
 
 import (
-	"log"
 	"syscall"
 )
 
-const SO_REUSEPORT = 0x0F
-const EPOLLET = 0x80000000
-
-var DefaultResponse = []byte("HTTP/1.1 200 OK\r\n" +
-	"Content-Length: 11\r\n" +
+var Http200 = []byte("HTTP/1.1 200 OK\r\n" +
+	"Server: hlc\r\n" +
+	"Content-Length: 2\r\n" +
 	"\r\n" +
-	"Hello World")
+	"{}")
 
-func startLoop() {
-	addr := &syscall.SockaddrInet4{Port: 8888}
-	listenSock, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
+func listenAndServe() {
+	srvSock, err := syscall.Socket(syscall.AF_INET, (syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK), syscall.IPPROTO_TCP)
 	if err != nil {
-		log.Fatal("syscall.Socket:", err)
+		panic(err)
 	}
-	if err = syscall.SetsockoptInt(listenSock, syscall.SOL_SOCKET, SO_REUSEPORT, 1); err != nil {
-		log.Fatal("syscall.SetsockoptInt:", err)
+	if err = syscall.SetsockoptInt(srvSock, syscall.SOL_SOCKET, 0x0F /* SO_REUSEPORT */, 1); err != nil {
+		panic(err)
 	}
-	if err = syscall.Bind(listenSock, addr); err != nil {
-		log.Fatal("syscall.Bind:", err)
+	if err = syscall.SetsockoptInt(srvSock, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil {
+		panic(err)
 	}
-	if err = syscall.Listen(listenSock, syscall.SOMAXCONN); err != nil {
-		log.Fatal("syscall.Listen:", err)
+	if err = syscall.SetsockoptInt(srvSock, syscall.SOL_TCP, syscall.TCP_DEFER_ACCEPT, 1); err != nil {
+		panic(err)
+	}
+	if err = syscall.SetsockoptInt(srvSock, syscall.SOL_TCP, 0x17 /* TCP_FASTOPEN */, 2048 /* Queue length */); err != nil {
+		panic(err)
+	}
+	if err = syscall.Bind(srvSock, &syscall.SockaddrInet4{Port: 80}); err != nil {
+		panic(err)
+	}
+	if err = syscall.Listen(srvSock, syscall.SOMAXCONN); err != nil {
+		panic(err)
 	}
 	epollFd, err := syscall.EpollCreate1(0)
 	if err != nil {
-		log.Fatal("syscall.EpollCreate1:", err)
+		panic(err)
 	}
-	event := syscall.EpollEvent{Fd: int32(listenSock), Events: syscall.EPOLLIN}
-	if err = syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, listenSock, &event); err != nil {
-		log.Fatal("syscall.EpollCtl:", err)
+	event := syscall.EpollEvent{Fd: int32(srvSock), Events: syscall.EPOLLIN}
+	if err = syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, srvSock, &event); err != nil {
+		panic(err)
 	}
-	events := make([]syscall.EpollEvent, 16384)
+	events := make([]syscall.EpollEvent, 2048)
 	buf := make([]byte, 16384)
 	for {
-		n, err := syscall.EpollWait(epollFd, events, -1)
+		n, err := syscall.EpollWait(epollFd, events, 0)
 		if err != nil {
-			log.Fatal("syscall.EpollWait:", err)
+			panic(err)
 		}
 		for i := 0; i < n; i++ {
-			switch {
-			case events[i].Fd == int32(listenSock):
-				clientSock, _, err := syscall.Accept4(listenSock, syscall.SOCK_NONBLOCK)
-				if err != nil {
-					log.Fatal("syscall.Accept4:", err)
+			sock := int(events[i].Fd)
+			if sock == srvSock {
+				if sock, _, err = syscall.Accept4(sock, syscall.SOCK_NONBLOCK); err != nil {
+					panic(err)
 				}
-				event = syscall.EpollEvent{Fd: int32(clientSock), Events: syscall.EPOLLIN}
-				if err = syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, clientSock, &event); err != nil {
-					log.Fatal("syscall.EpollCtl:", err)
+				if err = syscall.SetsockoptInt(sock, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil {
+					panic(err)
 				}
-			case events[i].Fd != int32(listenSock):
-				fd := int(events[i].Fd)
-				m, err := syscall.Read(fd, buf)
-				if m == 0 {
-					syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_DEL, fd, nil)
-					syscall.Close(fd)
-					continue
+				event = syscall.EpollEvent{Fd: int32(sock), Events: syscall.EPOLLIN}
+				if err = syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, sock, &event); err != nil {
+					panic(err)
 				}
-				if err != nil {
-					syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_DEL, fd, nil)
-					syscall.Close(fd)
-					continue
-				}
-				m, err = syscall.Write(fd, DefaultResponse)
-				if err != nil {
-					log.Fatal("syscall.Write:", err)
-				}
+			}
+			m, err := syscall.Read(sock, buf)
+			if m == 0 {
+				syscall.Close(sock)
+				continue
+			}
+			if err != nil {
+				syscall.Close(sock)
+				continue
+			}
+			if buf[0] == 'G' || buf[0] == 'P' {
+				syscall.Write(sock, Http200)
 			}
 		}
 	}
 }
 
 func main() {
-	go startLoop()
-	go startLoop()
-	startLoop()
+	listenAndServe()
 }
