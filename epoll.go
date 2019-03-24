@@ -79,5 +79,7 @@ func listenAndServe() {
 }
 
 func main() {
+	go listenAndServe()
+	go listenAndServe()
 	listenAndServe()
 }
