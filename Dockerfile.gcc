@@ -1,9 +1,0 @@
-FROM gcc:8.2 as builder
-RUN mkdir -p /root/go/src/github.com/freepk/epoll
-WORKDIR /root/go/src/github.com/freepk/epoll
-ADD ./epoll.c ./
-RUN gcc -O3 -Wall epoll.c -lpthread && ls -la
-
-FROM ubuntu
-COPY --from=builder /root/go/src/github.com/freepk/epoll/a.out /epoll
-CMD ["/epoll"]
